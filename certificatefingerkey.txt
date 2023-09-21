@@ -1,0 +1,36 @@
+$ keytool -list -v -keystore com.sarmuni.camera_app.jks
+Enter keystore password:  Utami27268821
+Keystore type: PKCS12
+Keystore provider: SUN
+
+Your keystore contains 1 entry
+
+Alias name: com.sarmuni.camera_app
+Creation date: Sep 7, 2023
+Entry type: PrivateKeyEntry
+Certificate chain length: 1
+Certificate[1]:
+Owner: CN=Sarmuni, OU=IT, O=IT, L=Serang, ST=Banten, C=62
+Issuer: CN=Sarmuni, OU=IT, O=IT, L=Serang, ST=Banten, C=62
+Serial number: 16f1df4cc80b9e60
+Valid from: Thu Sep 07 00:14:22 WIB 2023 until: Mon Jan 23 00:14:22 WIB 2051
+Certificate fingerprints:
+         SHA1: 82:D9:66:41:19:36:F2:CF:B8:9B:A0:2B:12:06:FC:CF:05:E1:67:E7
+         SHA256: 5F:40:B0:E1:AF:08:0C:16:35:56:58:3A:5A:43:FD:F3:2C:C1:38:8F:3E:00:1A:A0:05:30:E1:7C:9E:CD:6D:AD
+Signature algorithm name: SHA256withRSA
+Subject Public Key Algorithm: 2048-bit RSA key
+Version: 3
+
+Extensions:
+
+#1: ObjectId: 2.5.29.14 Criticality=false
+SubjectKeyIdentifier [
+KeyIdentifier [
+0000: 3D 4B F0 D7 AD 89 90 75   B0 32 7D AF CD 49 D0 11  =K.....u.2...I..
+0010: 6C 82 F8 4F                                        l..O
+]
+]
+
+
+
+*******************************************
