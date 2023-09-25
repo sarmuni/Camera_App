@@ -8,12 +8,24 @@ import 'package:flutter_downloader/flutter_downloader.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await FlutterDownloader.initialize();
+  await FlutterDownloader.initialize(
+      debug: true,
+      // optional: set to false to disable printing logs to console (default: true)
+      ignoreSsl: false
+      // option: set to false to disable working with http links (default: false)
+      );
 
   List<CameraDescription> cameras = await availableCameras();
 
   final initialRoute = await _getInitialRoute();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
+  // Tempatkan FlutterDownloader.registerCallback di sini
+  FlutterDownloader.registerCallback((id, status, progress) {
+    if (status == DownloadTaskStatus.complete) {
+      // File APK akan otomatis dibuka setelah unduhan selesai
+    }
+  });
 
   runApp(
     MaterialApp(
@@ -30,8 +42,6 @@ void main() async {
       ),
     ),
   );
-
-  // Panggil callback di sini
 }
 
 // Fungsi untuk mendapatkan rute awal berdasarkan status login

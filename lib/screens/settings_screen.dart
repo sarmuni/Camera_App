@@ -9,6 +9,16 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool notificationsEnabled = true;
+  String userName = '';
+  String userNik = '';
+
+  Future<void> _getUserInfo() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      userName = prefs.getString('name') ?? 'Unknown User';
+      userNik = prefs.getString('nik') ?? 'Unknown NIK';
+    });
+  }
 
   Future<String> getUserId() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -23,6 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _getUserInfo();
   }
 
   @override
@@ -42,7 +53,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               } else if (snapshot.hasError) {
                 return Text('Error: ${snapshot.error}');
               } else {
-                String userId = snapshot.data!;
+                // String userId = snapshot.data!;
                 return Container(
                   padding: EdgeInsets.all(16.0),
                   child: Row(
@@ -50,21 +61,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: <Widget>[
                       CircleAvatar(
                         radius: 40.0,
-                        backgroundImage: AssetImage('assets/images/camera.png'),
+                        child: Icon(
+                          Icons.person,
+                          size: 60.0,
+                          color: Colors.white,
+                        ),
+                        backgroundColor: Colors.red,
                       ),
                       SizedBox(width: 16.0),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '$userId',
+                            '$userNik',
                             style: TextStyle(
                               fontSize: 18.0,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           Text(
-                            'Your Status',
+                            '$userName',
                             style: TextStyle(
                               fontSize: 14.0,
                               color: Colors.grey,

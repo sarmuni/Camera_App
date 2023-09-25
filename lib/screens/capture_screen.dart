@@ -11,6 +11,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:camera_app/screens/settings_screen.dart';
 import 'package:camera_app/screens/image_preview_screen.dart';
+import 'package:open_file/open_file.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 class CaptureScreen extends StatefulWidget {
   final CameraDescription camera;
@@ -36,9 +38,19 @@ class _CaptureScreenState extends State<CaptureScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = CameraController(widget.camera, ResolutionPreset.max);
+    _controller = CameraController(widget.camera, ResolutionPreset.medium);
     _initializeCamera();
     _checkForUpdates(context);
+    _autoLogout(context);
+
+    // Tambahkan pemanggilan FlutterDownloader.registerCallback di sini
+    FlutterDownloader.registerCallback((id, status, progress) {
+      if (status == DownloadTaskStatus.complete) {
+        // File APK telah diunduh dan siap untuk dibuka
+        OpenFile.open(externalDir.path + '/camera_app_v0.0.6.apk');
+        // Ganti dengan nama file APK Anda yang benar
+      }
+    });
   }
 
   @override
@@ -106,28 +118,32 @@ class _CaptureScreenState extends State<CaptureScreen> {
           },
         ),
         actions: <Widget>[
-          // Tombol untuk mengaktifkan/menonaktifkan autofocus
+          // Tombol untuk mengaktifkan/menonaktifkan flash
           IconButton(
             onPressed: () {
               // Toggle flash
               setState(() {
-                _controller.setFlashMode(
-                  _flashOn ? FlashMode.torch : FlashMode.off,
-                );
+                if (_flashOn) {
+                  _controller.setFlashMode(FlashMode.off);
+                } else {
+                  _controller.setFlashMode(FlashMode.torch);
+                }
                 _flashOn = !_flashOn;
               });
             },
             icon: Icon(
               _flashOn ? Icons.flash_on : Icons.flash_off,
-              color: Colors.white,
+              color: _flashOn ? Colors.yellow : Colors.white,
+              // Ganti warna ikon jika flash aktif
             ),
           ),
+
           // Tombol untuk mengaktifkan/menonaktifkan autofocus
           IconButton(
             onPressed: () {
               setState(() {
-                _exposureAutoMode =
-                    !_exposureAutoMode; // Toggle variabel exposure
+                _exposureAutoMode = !_exposureAutoMode;
+                // Toggle variabel exposure
                 _controller.setExposureMode(
                   _exposureAutoMode ? ExposureMode.auto : ExposureMode.locked,
                 );
@@ -135,7 +151,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
             },
             icon: Icon(
               _exposureAutoMode ? Icons.crop_free : Icons.filter_center_focus,
-              color: Colors.white,
+              color: _exposureAutoMode ? Colors.white : Colors.yellow,
             ),
           ),
         ],
@@ -237,32 +253,24 @@ class _CaptureScreenState extends State<CaptureScreen> {
 
   void _captureImage() async {
     try {
-      setState(() {
-        _loading = true;
-      });
+      // Matikan terlebih dahulu flash sebelum mengambil gambar
+      if (_flashOn) {
+        _controller.setFlashMode(FlashMode.off);
+      }
 
       // Aktifkan autofocus sebelum mengambil gambar
       await _controller.setFocusMode(FocusMode.auto);
 
       final XFile image = await _controller.takePicture();
 
-      final File compressedImage = await _compressImage(File(image.path));
-      setState(() {
-        _loading = false;
-      });
-
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) =>
-              ImagePreviewScreen(imagePath: compressedImage.path),
+          builder: (context) => ImagePreviewScreen(imagePath: image.path),
         ),
       );
     } catch (e) {
       print('Error capturing image: $e');
-      setState(() {
-        _loading = false;
-      });
     }
   }
 
@@ -281,8 +289,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
     final image = img.decodeImage(bytes);
 
     if (image != null) {
-      final maxWidth = 530;
-      final maxHeight = 760;
+      final maxWidth = 480;
+      final maxHeight = 720;
 
       if (image.width > maxWidth || image.height > maxHeight) {
         final compressedImage = img.copyResize(
@@ -292,7 +300,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
         );
 
         final compressedFile = File(imageFile.path)
-          ..writeAsBytesSync(img.encodeJpg(compressedImage, quality: 98));
+          ..writeAsBytesSync(img.encodeJpg(compressedImage, quality: 100));
 
         return compressedFile;
       } else {
@@ -303,59 +311,109 @@ class _CaptureScreenState extends State<CaptureScreen> {
     }
   }
 
-  void _handleLogout() async {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Logout'),
-          content: Text('Are you sure you want to leave?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () async {
-                SharedPreferences prefs = await SharedPreferences.getInstance();
-                await prefs.remove('isLoggedIn');
-                await prefs.remove('userId');
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/login',
-                  (route) => false,
-                );
-              },
-              child: Text('OK'),
-            ),
-          ],
-        );
-      },
+// ============================= Cek Device Out Logout =========================
+
+  Future<void> _autoLogout(BuildContext context) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? userId = prefs.getString('userId');
+
+    // Dapatkan informasi perangkat
+    DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+    AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+    String manufacturer = androidInfo.model;
+
+    if (userId != null && userId.isNotEmpty) {
+      final url =
+          Uri.parse('https://iksmill.app.co.id/CredentialApi/api/UserLogin');
+
+      final response = await http.get(url, headers: {
+        'UserId': userId,
+        'Apps': 'Camera_App',
+        'DeviceId': manufacturer,
+      });
+
+      if (response.statusCode == 200) {
+        print('Response body: ${response.body}');
+        final responseData = json.decode(response.body);
+        final message = responseData['message'];
+
+        if (message == 'Data Found') {
+          // Tampilkan dialog dan lakukan logout otomatis
+          showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: Text('Logout'),
+                content: Text(
+                    'Sorry, your user ID has been blocked and your session has ended.'),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                    child: Text('OK'),
+                  ),
+                ],
+              );
+            },
+          );
+
+          Future.delayed(Duration(seconds: 5), () {
+            _handleLogout();
+          });
+        } else {
+          print('Unknown response: $message');
+        }
+      } else {
+        print('Request failed with status: ${response.statusCode}');
+        print('Reason phrase: ${response.reasonPhrase}');
+      }
+    } else {
+      print('User ID not found in SharedPreferences.');
+    }
+  }
+
+  Future<void> _handleLogout() async {
+    // Hapus data dari SharedPreferences
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.remove('isLoggedIn');
+    await prefs.remove('userId');
+
+    // Navigasi ke halaman login (ganti dengan halaman login Anda)
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      '/login',
+      // Ganti dengan rute halaman login Anda
+      (route) => false,
     );
   }
+// ============================= End Cek Device Out Logout ====================
 
 // ============================= Update Offline ===============================
   Future<void> _checkForUpdates(BuildContext context) async {
     final uri =
-        Uri.parse('https://iksmill.app.co.id/ChecklistAPI/api/versioncamera');
+        Uri.parse('https://iksmill.app.co.id/CredentialApi/api/MobileVersion');
+
+    var request = http.MultipartRequest('GET', uri);
+    request.fields['apps'] = 'Camera_App';
 
     try {
-      final response = await http.get(uri);
+      http.StreamedResponse response = await request.send();
 
       if (response.statusCode == 200) {
-        final responseData = json.decode(response.body) as List<dynamic>;
-        if (responseData.isNotEmpty) {
-          final latestVersionData = responseData[0];
-          final latestVersion = latestVersionData['VersionCode'];
-          final currentVersion = await getAppVersion();
+        final String responseBody = await response.stream.bytesToString();
+        final responseData = json.decode(responseBody);
 
-          if (latestVersion.compareTo(currentVersion) > 0) {
-            showUpdateDialog(context, () {
-              _downloadAndInstallAPK(latestVersionData['DownloadUrl']);
-            });
-          }
+        final latestVersionData = responseData['data']['versionCode'];
+        final latestVersion = latestVersionData.substring(1);
+        // Menghapus karakter 'V' di awal
+
+        final currentVersion = await getAppVersion();
+
+        if (latestVersion.compareTo(currentVersion) > 0) {
+          showUpdateDialog(context, () {
+            _downloadAndInstallAPK(responseData['data']['downloadUrl']);
+          });
         }
       } else {
         print('Failed to fetch data: ${response.reasonPhrase}');
@@ -367,13 +425,28 @@ class _CaptureScreenState extends State<CaptureScreen> {
 
   Future<void> _downloadAndInstallAPK(String apkUrl) async {
     final externalDir = await getExternalStorageDirectory();
-    await FlutterDownloader.enqueue(
+    final taskId = await FlutterDownloader.enqueue(
       url: apkUrl,
       savedDir: externalDir!.path,
       showNotification: true,
       openFileFromNotification: true,
       saveInPublicStorage: true,
     );
+
+    FlutterDownloader.registerCallback((id, status, progress) {
+      if (id == taskId) {
+        if (status == DownloadTaskStatus.complete) {
+          print('Download completed');
+          showUpdateDialog(context, () {
+            print('Opening and installing the APK');
+            OpenFile.open(externalDir.path + '/camera_app_v0.0.6.apk');
+          });
+        } else if (status == DownloadTaskStatus.failed) {
+          print('Download failed');
+          // Handle download failure here
+        }
+      }
+    });
   }
 
   Future<String> getAppVersion() async {

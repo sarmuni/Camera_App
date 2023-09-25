@@ -16,6 +16,7 @@ class ImagePreviewScreen extends StatefulWidget {
 class _ImagePreviewScreenState extends State<ImagePreviewScreen> {
   final TextEditingController dirnameController = TextEditingController();
   bool _validateDirname = false;
+  bool _sendingData = false; // Status mengirim data
 
   @override
   void initState() {
@@ -46,70 +47,80 @@ class _ImagePreviewScreenState extends State<ImagePreviewScreen> {
         title: Text('Photo Preview'),
       ),
       body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: <Widget>[
-            Image.file(File(widget.imagePath)),
-            SizedBox(height: 16.0),
-            Padding(
-              padding: EdgeInsets.all(16.0),
-              child: TextField(
-                controller: dirnameController,
-                onChanged: (text) {
-                  // Panggil fungsi untuk menyimpan deskripsi ke SharedPreferences saat teks berubah
-                  _saveDescriptionToSharedPreferences(text);
-                },
-                decoration: InputDecoration(
-                  hintText: 'Description',
-                  border: OutlineInputBorder(),
-                  labelText: 'Description',
-                  errorText:
-                      _validateDirname ? 'Description is required.' : null,
-                ),
-              ),
-            ),
-            // button
-            ElevatedButton.icon(
-              onPressed: () {
-                if (dirnameController.text.isEmpty) {
-                  showDialog(
-                    context: context,
-                    builder: (BuildContext context) {
-                      return AlertDialog(
-                        title: Text('Validation Error'),
-                        content: Text('Description is required.'),
-                        actions: [
-                          TextButton(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                            },
-                            child: Text('OK'),
-                          ),
-                        ],
-                      );
+          child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          Image.file(File(widget.imagePath)),
+          SizedBox(height: 16.0),
+          Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: dirnameController,
+                    onChanged: (text) {
+                      // Panggil fungsi untuk menyimpan deskripsi ke SharedPreferences saat teks berubah
+                      _saveDescriptionToSharedPreferences(text);
                     },
-                  );
-                } else {
-                  // Panggil fungsi untuk mengirim foto ke server di sini
-                  _sendPhotoToAPI(context, dirnameController.text);
-                }
-              },
-              icon: Icon(Icons.send),
-              // Tambahkan ikon di sini
-              label: Text('Send To Server'),
-              style: ElevatedButton.styleFrom(
-                primary: Colors.red,
-                // Ubah warna tombol menjadi merah
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30.0),
-                  // Atur sudut tombol yang dibulatkan
+                    decoration: InputDecoration(
+                      hintText: 'Description',
+                      border: OutlineInputBorder(),
+                      labelText: 'Description',
+                      errorText:
+                          _validateDirname ? 'Description is required.' : null,
+                    ),
+                  ),
                 ),
-              ),
-            )
-            // end button
-          ],
-        ),
-      ),
+                SizedBox(width: 16.0), // Spasi antara TextField dan tombol
+                SizedBox(
+                  height: 48.0, // Sesuaikan tinggi dengan tinggi TextField
+                  child: ElevatedButton.icon(
+                    onPressed: _sendingData
+                        ? null
+                        : () {
+                            if (dirnameController.text.isEmpty) {
+                              showDialog(
+                                context: context,
+                                builder: (BuildContext context) {
+                                  return AlertDialog(
+                                    title: Text('Validation Error'),
+                                    content: Text('Description is required.'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.of(context).pop();
+                                        },
+                                        child: Text('OK'),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
+                            } else {
+                              setState(() {
+                                _sendingData = true;
+                                // Set status mengirim data
+                              });
+                              // Panggil fungsi untuk mengirim foto ke server di sini
+                              _sendPhotoToAPI(context, dirnameController.text);
+                            }
+                          },
+                    icon: Icon(Icons.send),
+                    label: Text('Send'),
+                    style: ElevatedButton.styleFrom(
+                      primary: Colors.red,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10.0),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      )),
     );
   }
 
@@ -156,6 +167,10 @@ class _ImagePreviewScreenState extends State<ImagePreviewScreen> {
       print('Error sending image to API: $e');
       _showErrorDialog(context,
           'Error sending image to API, There was a problem with the connection or service.!');
+    } finally {
+      setState(() {
+        _sendingData = false; // Set status mengirim data kembali ke false
+      });
     }
   }
 

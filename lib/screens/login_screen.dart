@@ -1,8 +1,8 @@
 import 'package:http/http.dart' as http;
-import 'package:xml2json/xml2json.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -16,67 +16,70 @@ class _LoginScreenState extends State<LoginScreen> {
   TextEditingController _nikSapController = TextEditingController();
   TextEditingController _passwordController = TextEditingController();
 
-  // Service SOAP
-  Future<String> _Web_Service_SOAP(String username, String password) async {
-    var headers = {
-      'Content-Type': 'text/xml',
-    };
-    var body = '''<?xml version="1.0" encoding="utf-8"?>
-  <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-    <soap:Body>
-      <CUISPassword xmlns="http://tempuri.org/">
-        <sServicePassword>ITngetoP</sServicePassword>
-        <sUserID>$username</sUserID>
-        <sPassword>$password</sPassword>
-      </CUISPassword>
-    </soap:Body>
-  </soap:Envelope>''';
+  // API LOGIN
+  Future<Map<String, dynamic>> _apiLogin(
+      String username, String password, String manufacturer) async {
+    final Uri url =
+        Uri.parse('https://iksmill.app.co.id/CredentialApi/api/UserLogin');
 
-    final response = await http.post(
-      Uri.parse(
-          'https://iksmill.app.co.id/wscuis/service.asmx?op=CUISPassword'),
-      headers: headers,
-      body: body,
-    );
+    var request = http.MultipartRequest('POST', url);
+    request.fields['UserId'] = username;
+    request.fields['Password'] = password;
+    request.fields['Apps'] = 'Camera_App';
+    request.fields['DeviceId'] = manufacturer;
 
-    if (response.statusCode == 200) {
-      final xml2json = Xml2Json();
-      xml2json.parse(response.body);
-      final jsonString = xml2json.toParker();
+    print(manufacturer);
 
-      final jsonData = json.decode(jsonString);
-      final result = jsonData['soap:Envelope']['soap:Body']
-          ['CUISPasswordResponse']['CUISPasswordResult'];
+    try {
+      http.StreamedResponse response = await request.send();
 
-      print('Result: $result');
-      return result;
-    } else {
-      throw Exception('Login failed');
+      if (response.statusCode == 200) {
+        final String responseBody = await response.stream.bytesToString();
+        final Map<String, dynamic> responseData = json.decode(responseBody);
+
+        if (responseData.containsKey('success') &&
+            responseData['success'] == true) {
+          return responseData['data'];
+        } else {
+          throw Exception('Login failed: ${responseData['message']}');
+        }
+      } else {
+        throw Exception('Login failed');
+      }
+    } catch (e) {
+      throw Exception('Login failed: $e');
     }
   }
-  // End Service SOAP
+  // End API LOGIN
 
   Future<void> _handleLoginButtonPress() async {
     try {
-      String userId = _nikSapController.text;
+      String username = _nikSapController.text;
+      String password = _passwordController.text;
 
-      // Melakukan login dan mendapatkan hasil respons dari SOAP
-      String result = await _Web_Service_SOAP(
-        _nikSapController.text,
-        _passwordController.text,
-      );
+      // Dapatkan informasi perangkat
+      DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+      AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+      String manufacturer = androidInfo.model;
 
-      if (result == 'true') {
+      // Lakukan login ke API
+      Map<String, dynamic> userData =
+          await _apiLogin(username, password, manufacturer);
+
+      // Periksa apakah login berhasil berdasarkan respons API
+      if (userData.isNotEmpty) {
         // Simpan status login ke SharedPreferences
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setBool('isLoggedIn', true);
-        await prefs.setString('userId', userId);
-
-        print('User ID saved: $userId');
+        await prefs.setString('userId', username);
+        await prefs.setString('name', userData['name']);
+        await prefs.setString('sap', userData['sap']);
+        await prefs.setString('nik', userData['nik']);
 
         // Hapus semua halaman kecuali halaman login dari tumpukan navigasi
         Navigator.of(context).popUntil((route) => route.isFirst);
 
+        // Navigasi ke halaman berikutnya setelah login berhasil
         Navigator.of(context).pushReplacementNamed('/capture');
       } else {
         // Tampilkan Snackbar jika login gagal
@@ -88,6 +91,12 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       print('Login failed: ${e.toString()}');
+      // Tampilkan Snackbar jika terjadi kesalahan saat login
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login failed: ${e.toString()}'),
+        ),
+      );
     }
   }
 
