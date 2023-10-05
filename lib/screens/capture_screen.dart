@@ -12,7 +12,9 @@ import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:camera_app/screens/settings_screen.dart';
 import 'package:camera_app/screens/image_preview_screen.dart';
 import 'package:open_file/open_file.dart';
-import 'package:device_info_plus/device_info_plus.dart';
+// import 'package:device_info_plus/device_info_plus.dart';
+import 'package:device_information/device_information.dart';
+import 'package:flutter/services.dart';
 
 class CaptureScreen extends StatefulWidget {
   final CameraDescription camera;
@@ -34,6 +36,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
   late Directory externalDir;
   TextEditingController dirnameController = TextEditingController();
   bool _exposureAutoMode = true;
+  String imeiNo = 'Loading...';
+  String _selectedResolution = 'medium';
 
   @override
   void initState() {
@@ -42,6 +46,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
     _initializeCamera();
     _checkForUpdates(context);
     _autoLogout(context);
+    _getDeviceInformation();
 
     // Tambahkan pemanggilan FlutterDownloader.registerCallback di sini
     FlutterDownloader.registerCallback((id, status, progress) {
@@ -53,6 +58,18 @@ class _CaptureScreenState extends State<CaptureScreen> {
     });
   }
 
+  // GET IMEI
+  Future<void> _getDeviceInformation() async {
+    try {
+      imeiNo = await DeviceInformation.deviceIMEINumber;
+    } on PlatformException {
+      imeiNo = 'Permission not access';
+    }
+
+    setState(() {});
+  }
+  // END IMEI
+
   @override
   void dispose() {
     _controller.dispose();
@@ -61,6 +78,35 @@ class _CaptureScreenState extends State<CaptureScreen> {
   }
 
   Future<void> _initializeCamera() async {
+    final prefs = await SharedPreferences.getInstance();
+    _selectedResolution = prefs.getString('cameraResolution') ?? 'medium';
+    // low 320x240
+    // medium 720x480
+    // hight 1280x720
+    // veryHight 1920x1080
+    // ultrahight 3840x2160
+    ResolutionPreset preset;
+
+    switch (_selectedResolution) {
+      case 'low':
+        preset = ResolutionPreset.low;
+        break;
+      case 'high':
+        preset = ResolutionPreset.high;
+        break;
+      case 'veryHigh':
+        preset = ResolutionPreset.veryHigh;
+        break;
+      case 'ultraHigh':
+        preset = ResolutionPreset.ultraHigh;
+        break;
+      default:
+        preset = ResolutionPreset.medium;
+        break;
+    }
+
+    _controller = CameraController(widget.camera, preset);
+
     await _controller.initialize();
     if (!mounted) {
       return;
@@ -118,6 +164,14 @@ class _CaptureScreenState extends State<CaptureScreen> {
           },
         ),
         actions: <Widget>[
+          // resolustion
+          IconButton(
+            icon: Icon(Icons.hd),
+            onPressed: () {
+              _showSettingsDialog(context);
+            },
+          ),
+          // resolution
           // Tombol untuk mengaktifkan/menonaktifkan flash
           IconButton(
             onPressed: () {
@@ -251,6 +305,63 @@ class _CaptureScreenState extends State<CaptureScreen> {
     );
   }
 
+  void _showSettingsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Settings'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListTile(
+                title: Text('Resolution'),
+                trailing: DropdownButton<String>(
+                  value: _selectedResolution,
+                  onChanged: (String? newValue) async {
+                    if (newValue != null) {
+                      final prefs = await SharedPreferences.getInstance();
+                      prefs.setString('cameraResolution', newValue);
+                      setState(() {
+                        _selectedResolution = newValue;
+                      });
+                      _initializeCamera();
+                    }
+                  },
+                  // low 320x240
+                  // medium 720x480
+                  // hight 1280x720
+                  // veryHight 1920x1080
+                  // ultrahight 3840x2160
+                  items: <String>[
+                    'low',
+                    'medium',
+                    'high',
+                    'veryHigh',
+                    'ultraHigh',
+                  ].map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('OK'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _captureImage() async {
     try {
       // Matikan terlebih dahulu flash sebelum mengambil gambar
@@ -314,30 +425,33 @@ class _CaptureScreenState extends State<CaptureScreen> {
 // ============================= Cek Device Out Logout =========================
 
   Future<void> _autoLogout(BuildContext context) async {
+    // Get User ID dari Sherpreference
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? userId = prefs.getString('userId');
+    String? DeviceId = prefs.getString('DeviceId');
+    // Dapatkan Android Device ID (IMEI)
+    // String manufacturer = imeiNo;
 
-    // Dapatkan informasi perangkat
-    DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-    AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
-    String manufacturer = androidInfo.model;
+    final uri =
+        Uri.parse('https://iksmill.app.co.id/CredentialApi/api/UserLogin');
 
-    if (userId != null && userId.isNotEmpty) {
-      final url =
-          Uri.parse('https://iksmill.app.co.id/CredentialApi/api/UserLogin');
+    var request = http.MultipartRequest('GET', uri);
+    request.fields['userId'] = '$userId';
+    print('Unknown response: $userId');
+    request.fields['apps'] = 'Camera_App';
+    print('Unknown response: Camera_App');
+    request.fields['DeviceId'] = '$DeviceId';
+    print('Unknown response: $DeviceId');
 
-      final response = await http.get(url, headers: {
-        'UserId': userId,
-        'Apps': 'Camera_App',
-        'DeviceId': manufacturer,
-      });
+    try {
+      http.StreamedResponse response = await request.send();
 
       if (response.statusCode == 200) {
-        print('Response body: ${response.body}');
-        final responseData = json.decode(response.body);
+        final String responseBody = await response.stream.bytesToString();
+        final responseData = json.decode(responseBody);
         final message = responseData['message'];
 
-        if (message == 'Data Found') {
+        if (message == 'Device ID Blocked') {
           // Tampilkan dialog dan lakukan logout otomatis
           showDialog(
             context: context,
@@ -365,11 +479,10 @@ class _CaptureScreenState extends State<CaptureScreen> {
           print('Unknown response: $message');
         }
       } else {
-        print('Request failed with status: ${response.statusCode}');
-        print('Reason phrase: ${response.reasonPhrase}');
+        print('Failed to fetch data: ${response.reasonPhrase}');
       }
-    } else {
-      print('User ID not found in SharedPreferences.');
+    } catch (error) {
+      print('Error during HTTP request: $error');
     }
   }
 
@@ -465,12 +578,12 @@ class _CaptureScreenState extends State<CaptureScreen> {
         return AlertDialog(
           title: Text('Update Available'),
           content: Text(
-              'A new version of the app is available. Do you want to update?'),
+              'A new version of the app is available. Do you want to download?'),
           actions: <Widget>[
             TextButton(
-              child: Text('Update'),
+              child: Text('Download'),
               onPressed: () {
-                print('Update button pressed');
+                print('Download button pressed');
                 downloadAndInstallAPK();
                 Navigator.of(context).pop();
                 print('After popping dialog');
@@ -489,7 +602,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
       },
     );
 
-    print('After showing update dialog');
+    print('After showing download dialog');
   }
 }
 

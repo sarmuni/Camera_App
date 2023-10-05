@@ -47,17 +47,16 @@ class _ImagePreviewScreenState extends State<ImagePreviewScreen> {
         title: Text('Photo Preview'),
       ),
       body: SingleChildScrollView(
-          child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: <Widget>[
-          Image.file(File(widget.imagePath)),
-          SizedBox(height: 16.0),
-          Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: <Widget>[
+            Image.file(File(widget.imagePath)),
+            SizedBox(height: 16.0),
+            Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  TextField(
                     controller: dirnameController,
                     onChanged: (text) {
                       // Panggil fungsi untuk menyimpan deskripsi ke SharedPreferences saat teks berubah
@@ -71,56 +70,80 @@ class _ImagePreviewScreenState extends State<ImagePreviewScreen> {
                           _validateDirname ? 'Description is required.' : null,
                     ),
                   ),
-                ),
-                SizedBox(width: 16.0), // Spasi antara TextField dan tombol
-                SizedBox(
-                  height: 48.0, // Sesuaikan tinggi dengan tinggi TextField
-                  child: ElevatedButton.icon(
-                    onPressed: _sendingData
-                        ? null
-                        : () {
-                            if (dirnameController.text.isEmpty) {
-                              showDialog(
-                                context: context,
-                                builder: (BuildContext context) {
-                                  return AlertDialog(
-                                    title: Text('Validation Error'),
-                                    content: Text('Description is required.'),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.of(context).pop();
-                                        },
-                                        child: Text('OK'),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              );
-                            } else {
-                              setState(() {
-                                _sendingData = true;
-                                // Set status mengirim data
-                              });
-                              // Panggil fungsi untuk mengirim foto ke server di sini
-                              _sendPhotoToAPI(context, dirnameController.text);
-                            }
-                          },
-                    icon: Icon(Icons.send),
-                    label: Text('Send'),
-                    style: ElevatedButton.styleFrom(
-                      primary: Colors.red,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10.0),
+                  SizedBox(height: 16.0),
+                  // Spasi antara TextField dan tombol
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // button cancel
+                      ElevatedButton(
+                        onPressed: () {
+                          // Tambahkan logika untuk tombol "Cancel" di sini
+                          Navigator.pop(context);
+                        },
+                        child: Text('Cancel'),
+                        style: ElevatedButton.styleFrom(
+                          primary: Colors.grey,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10.0),
+                          ),
+                          minimumSize: Size(150.0, 48.0),
+                        ),
                       ),
-                    ),
+                      // button cancel
+                      // button send
+                      ElevatedButton.icon(
+                        onPressed: _sendingData
+                            ? null
+                            : () {
+                                if (dirnameController.text.isEmpty) {
+                                  showDialog(
+                                    context: context,
+                                    builder: (BuildContext context) {
+                                      return AlertDialog(
+                                        title: Text('Validation Error'),
+                                        content:
+                                            Text('Description is required.'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.of(context).pop();
+                                            },
+                                            child: Text('OK'),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+                                } else {
+                                  setState(() {
+                                    _sendingData = true;
+                                    // Set status mengirim data
+                                  });
+                                  // Panggil fungsi untuk mengirim foto ke server di sini
+                                  _sendPhotoToAPI(
+                                      context, dirnameController.text);
+                                }
+                              },
+                        icon: Icon(Icons.send),
+                        label: Text('Send'),
+                        style: ElevatedButton.styleFrom(
+                          primary: Colors.red,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10.0),
+                          ),
+                          minimumSize: Size(150.0, 48.0),
+                        ),
+                      ),
+                      // end button send
+                    ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
-      )),
+          ],
+        ),
+      ),
     );
   }
 
@@ -169,7 +192,8 @@ class _ImagePreviewScreenState extends State<ImagePreviewScreen> {
           'Error sending image to API, There was a problem with the connection or service.!');
     } finally {
       setState(() {
-        _sendingData = false; // Set status mengirim data kembali ke false
+        _sendingData = false;
+        // Set status mengirim data kembali ke false
       });
     }
   }

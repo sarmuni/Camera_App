@@ -2,7 +2,9 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
-import 'package:device_info_plus/device_info_plus.dart';
+// import 'package:device_info_plus/device_info_plus.dart';
+import 'package:device_information/device_information.dart';
+import 'package:flutter/services.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -15,6 +17,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   TextEditingController _nikSapController = TextEditingController();
   TextEditingController _passwordController = TextEditingController();
+
+  String imeiNo = 'Loading...';
+
+  @override
+  void initState() {
+    super.initState();
+    _getDeviceInformation();
+  }
 
   // API LOGIN
   Future<Map<String, dynamic>> _apiLogin(
@@ -52,15 +62,26 @@ class _LoginScreenState extends State<LoginScreen> {
   }
   // End API LOGIN
 
+  // GET IMEI
+  Future<void> _getDeviceInformation() async {
+    try {
+      imeiNo = await DeviceInformation.deviceIMEINumber;
+    } on PlatformException {
+      imeiNo = 'Permission not access';
+    }
+
+    setState(() {});
+  }
+  // END IMEI
+
   Future<void> _handleLoginButtonPress() async {
     try {
       String username = _nikSapController.text;
       String password = _passwordController.text;
 
-      // Dapatkan informasi perangkat
-      DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-      AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
-      String manufacturer = androidInfo.model;
+      // Dapatkan Android Device ID (IMEI)
+      String manufacturer = imeiNo;
+      print(manufacturer);
 
       // Lakukan login ke API
       Map<String, dynamic> userData =
@@ -71,6 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
         // Simpan status login ke SharedPreferences
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setBool('isLoggedIn', true);
+        await prefs.setString('DeviceId', manufacturer);
         await prefs.setString('userId', username);
         await prefs.setString('name', userData['name']);
         await prefs.setString('sap', userData['sap']);
